@@ -36,7 +36,7 @@ flowchart LR
 
     subgraph AI["AI provider (env-selected)"]
         Ollama["Ollama — local dev\nllama3.1:8b, no API key"]
-        Gemini["Gemini API — production\ngemini-2.0-flash, free tier"]
+        Gemini["Gemini API — production\ngemini-3.6-flash, free tier"]
     end
 
     DB[(PostgreSQL via Prisma)]
@@ -75,8 +75,10 @@ Provider selection is environment-based, resolved once per request by `resolvePr
 **Production — Gemini free tier, zero cost.** Set `NODE_ENV=production` (deploy platforms do
 this automatically) and provide `GEMINI_API_KEY` (get one free at
 [aistudio.google.com/apikey](https://aistudio.google.com/apikey)). Defaults to
-`gemini-2.0-flash`, override with `GEMINI_MODEL` (e.g. `gemini-1.5-flash`). Both models are
-available on Gemini's free tier.
+`gemini-3.6-flash`, override with `GEMINI_MODEL` for whichever flash-tier model is current on
+Gemini's free tier (model availability shifts over time — check
+[ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs/models) if you hit a
+404 for "model no longer available").
 
 Nothing about the OpenAI package usage changes: only `baseURL`, `apiKey`, and `model` swap based
 on the resolved provider — see [`server/.env.example`](server/.env.example) for every variable.

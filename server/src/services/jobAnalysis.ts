@@ -13,7 +13,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.1:8b";
 
 const GEMINI_BASE_URL =
   process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai/";
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
 
 // AI_PROVIDER wins when set; otherwise NODE_ENV=production defaults to Gemini so
 // prod never silently depends on a local Ollama server. Local dev defaults to Ollama.
