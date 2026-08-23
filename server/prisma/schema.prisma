@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ApplicationStatus {
+  applied
+  interviewing
+  rejected
+  offer
+}
+
+model Company {
+  id           String        @id @default(uuid())
+  name         String        @unique
+  industry     String?
+  size         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  applications Application[]
+
+  @@map("companies")
+}
+
+model Application {
+  id            String            @id @default(uuid())
+  company       Company           @relation(fields: [companyId], references: [id])
+  companyId     String
+  role          String
+  status        ApplicationStatus @default(applied)
+  appliedDate   DateTime
+  jobUrl        String?
+  resumeVariant String?
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  contacts      Contact[]
+
+  // AI job-description analysis (populated by POST /applications/:id/analyze)
+  jobDescriptionText       String?
+  extractedRequiredSkills  Json?
+  extractedPreferredSkills Json?
+  seniorityLevel           String?
+  roleSummary              String?
+  fitScore                 Int?
+  matchBreakdown           Json?
+  analyzedAt               DateTime?
+
+  @@map("applications")
+}
+
+model Skill {
+  id         String      @id @default(uuid())
+  name       String      @unique
+  category   String?
+  createdAt  DateTime    @default(now())
+  userSkill  UserSkill?
+
+  @@map("skills")
+}
+
+model UserSkill {
+  id              String   @id @default(uuid())
+  skill           Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId         String   @unique
+  proficiency     String?
+  yearsExperience Float?
+  createdAt       DateTime @default(now())
+
+  @@map("user_skills")
+}
+
+model Contact {
+  id            String       @id @default(uuid())
+  name          String
+  role          String?
+  email         String?
+  linkedinUrl   String?
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationId String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("contacts")
+}
