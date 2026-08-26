@@ -27,9 +27,11 @@ export function ApplicationModal({
   onSaved,
   onDeleted,
 }: Props) {
-  // Tracks the saved record for this modal session. Starts null in create mode and
-  // flips to the created record on first save, which reveals the analyze section
-  // below without needing to close and reopen the modal.
+  // Tracks the saved record for this modal session. Only matters between mount and the first
+  // save/analyze/resume-change: handleSubmit always closes the modal on success (create and
+  // edit alike), same as every other successful-submit flow in the app (LogOutreachModal,
+  // EmailImportModal's confirm step) - so `current` only needs to carry a value from render to
+  // render while the modal is still open for other actions (Delete, Analyze, resume upload).
   const [current, setCurrent] = useState<Application | null>(application);
   const [deleting, setDeleting] = useState(false);
 
@@ -37,8 +39,8 @@ export function ApplicationModal({
     const result = current
       ? await updateApplication(current.id, input)
       : await createApplication(input);
-    setCurrent(result);
     onSaved(result);
+    onClose();
   }
 
   function handleAnalyzed(updated: Application) {
