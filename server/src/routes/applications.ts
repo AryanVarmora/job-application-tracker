@@ -1,7 +1,10 @@
 import { Router } from "express";
+import path from "node:path";
+import fs from "node:fs/promises";
 import { prisma } from "../lib/prisma";
 import { validateBody, validateParams } from "../middleware/validate";
 import { HttpError } from "../middleware/errorHandler";
+import { resumeUpload } from "../middleware/resumeUpload";
 import {
   applicationIdParamSchema,
   createApplicationSchema,
@@ -15,10 +18,16 @@ import { parseJobPostingFromUrl } from "../services/jobUrlImport";
 import { computeMatchScore } from "../services/matchScore";
 import { suggestResumeVariant } from "../services/resumeVariants";
 import { findBestCompanyMatch } from "../services/companyMatch";
+import { purgeExpiredResumeFiles } from "../services/resumeExpiry";
+import {
+  deleteResumeFileFromDisk,
+  resolveResumePath,
+  resumeFileNameFor,
+} from "../services/resumeStorage";
 
 export const applicationsRouter = Router();
 
-const applicationInclude = {
+export const applicationInclude = {
   company: true,
   contacts: true,
 } as const;
@@ -26,6 +35,8 @@ const applicationInclude = {
 // GET /applications
 applicationsRouter.get("/", async (req, res, next) => {
   try {
+    await purgeExpiredResumeFiles();
+
     const { status } = req.query;
     const where =
       typeof status === "string" && status.length > 0 ? { status: status as any } : {};
@@ -47,6 +58,8 @@ applicationsRouter.get(
   validateParams(applicationIdParamSchema),
   async (req, res, next) => {
     try {
+      await purgeExpiredResumeFiles();
+
       const application = await prisma.application.findUnique({
         where: { id: req.params.id },
         include: applicationInclude,
@@ -342,6 +355,104 @@ applicationsRouter.get(
   }
 );
 
+// POST /applications/:id/resume
+// Replaces any existing resume file for this application (even one with a different
+// extension) - only ever one resume on disk per application at a time.
+applicationsRouter.post(
+  "/:id/resume",
+  validateParams(applicationIdParamSchema),
+  resumeUpload.single("resume"),
+  async (req, res, next) => {
+    try {
+      const existing = await prisma.application.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!existing) {
+        throw new HttpError(404, "Application not found");
+      }
+      if (!req.file) {
+        throw new HttpError(400, "No file uploaded (expected a 'resume' form field)");
+      }
+
+      const ext = path.extname(req.file.originalname).toLowerCase();
+      const fileName = resumeFileNameFor(existing.id, ext);
+
+      if (existing.resumeFilePath) {
+        await deleteResumeFileFromDisk(existing.resumeFilePath);
+      }
+      await fs.writeFile(resolveResumePath(fileName), req.file.buffer);
+
+      const application = await prisma.application.update({
+        where: { id: existing.id },
+        data: { resumeFilePath: fileName, resumeFileUploadedAt: new Date() },
+        include: applicationInclude,
+      });
+
+      res.json(application);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /applications/:id/resume
+applicationsRouter.get(
+  "/:id/resume",
+  validateParams(applicationIdParamSchema),
+  async (req, res, next) => {
+    try {
+      await purgeExpiredResumeFiles();
+
+      const application = await prisma.application.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!application?.resumeFilePath) {
+        throw new HttpError(404, "No resume file found for this application");
+      }
+
+      const ext = path.extname(application.resumeFilePath);
+      const downloadName = `${application.resumeVariant ?? "resume"}${ext}`;
+
+      res.download(resolveResumePath(application.resumeFilePath), downloadName, (err) => {
+        if (err && !res.headersSent) {
+          next(new HttpError(404, "Resume file not found on disk"));
+        }
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /applications/:id/resume
+applicationsRouter.delete(
+  "/:id/resume",
+  validateParams(applicationIdParamSchema),
+  async (req, res, next) => {
+    try {
+      const existing = await prisma.application.findUnique({
+        where: { id: req.params.id },
+      });
+      if (!existing) {
+        throw new HttpError(404, "Application not found");
+      }
+      if (!existing.resumeFilePath) {
+        throw new HttpError(404, "No resume file to delete");
+      }
+
+      await deleteResumeFileFromDisk(existing.resumeFilePath);
+      await prisma.application.update({
+        where: { id: existing.id },
+        data: { resumeFilePath: null, resumeFileUploadedAt: null },
+      });
+
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // DELETE /applications/:id
 applicationsRouter.delete(
   "/:id",
@@ -353,6 +464,11 @@ applicationsRouter.delete(
       });
       if (!existing) {
         throw new HttpError(404, "Application not found");
+      }
+      // Once the row is gone, purgeExpiredResumeFiles can never find this resume file again
+      // to clean it up - it has to happen here, or it leaks on disk permanently.
+      if (existing.resumeFilePath) {
+        await deleteResumeFileFromDisk(existing.resumeFilePath);
       }
       await prisma.application.delete({ where: { id: req.params.id } });
       res.status(204).send();

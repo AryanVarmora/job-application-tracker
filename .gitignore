@@ -21,6 +21,9 @@ server/dist/
 **/prisma/*.db
 **/prisma/migrations/dev/
 
+# Locally-stored uploads (resume files - see server/src/services/resumeStorage.ts)
+server/uploads/
+
 # Logs
 *.log
 npm-debug.log*

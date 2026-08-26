@@ -54,6 +54,11 @@ export interface Application {
   updatedAt: string;
   statusChangedAt: string | null;
 
+  // Locally-stored resume file (see POST/GET/DELETE /applications/:id/resume). Auto-expires
+  // 30 days after upload — both fields go back to null once that happens.
+  resumeFilePath: string | null;
+  resumeFileUploadedAt: string | null;
+
   // Gates the "Analyze fit with AI" flow. Off by default; POST /applications/:id/analyze
   // is rejected server-side while this is false.
   analyzeEnabled: boolean;

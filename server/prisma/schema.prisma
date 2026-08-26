@@ -46,6 +46,14 @@ model Application {
   updatedAt     DateTime          @updatedAt
   contacts      Contact[]
 
+  // Locally-stored resume file (see services/resumeStorage.ts + resumeExpiry.ts). Path is
+  // relative to the uploads/resumes directory, not an absolute filesystem path, so the
+  // stored value stays portable across deploys and doesn't leak server directory layout
+  // through the API. Auto-expires 30 days after upload via the same check-on-read pattern
+  // as OutreachContact's 7-day expiry.
+  resumeFilePath       String?
+  resumeFileUploadedAt DateTime?
+
   // Set whenever `status` actually changes value (see PATCH /applications/:id).
   // Powers GET /digest/today's "rejected today" count without a full history table.
   statusChangedAt DateTime?

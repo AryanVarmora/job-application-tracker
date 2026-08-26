@@ -96,6 +96,25 @@ export function parseJobUrl(url: string): Promise<JobUrlExtraction> {
   }).then((res) => handle(res));
 }
 
+export function uploadResume(id: string, file: File): Promise<Application> {
+  const formData = new FormData();
+  formData.append("resume", file);
+  return fetch(`${API_URL}/applications/${id}/resume`, {
+    method: "POST",
+    body: formData,
+  }).then((res) => handle(res));
+}
+
+export function getResumeDownloadUrl(id: string): string {
+  return `${API_URL}/applications/${id}/resume`;
+}
+
+export function deleteResume(id: string): Promise<void> {
+  return fetch(`${API_URL}/applications/${id}/resume`, { method: "DELETE" }).then((res) =>
+    handle(res)
+  );
+}
+
 export function getTodayDigest(): Promise<DigestToday> {
   return fetch(`${API_URL}/digest/today`).then((res) => handle(res));
 }

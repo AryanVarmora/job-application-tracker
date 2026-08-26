@@ -7,6 +7,7 @@ import { ApplicationForm } from "./ApplicationForm";
 import { AnalyzePanel } from "./AnalyzePanel";
 import { SkillBreakdown } from "./SkillBreakdown";
 import { ResumeSuggestionPanel } from "./ResumeSuggestionPanel";
+import { ResumeFilePanel } from "./ResumeFilePanel";
 import { ghostDangerButton, glassPanel, sectionEyebrow } from "../../lib/uiStyles";
 
 interface Props {
@@ -41,6 +42,11 @@ export function ApplicationModal({
   }
 
   function handleAnalyzed(updated: Application) {
+    setCurrent(updated);
+    onSaved(updated);
+  }
+
+  function handleResumeChanged(updated: Application) {
     setCurrent(updated);
     onSaved(updated);
   }
@@ -87,6 +93,13 @@ export function ApplicationModal({
           prefillStatus={prefillStatus}
           onSubmit={handleSubmit}
         />
+
+        {current && current.resumeVariant && (
+          <>
+            <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent dark:via-white/10" />
+            <ResumeFilePanel application={current} onChanged={handleResumeChanged} />
+          </>
+        )}
 
         {current && current.analyzeEnabled && (
           <>
