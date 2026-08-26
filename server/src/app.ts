@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import { applicationsRouter } from "./routes/applications";
+import { digestRouter } from "./routes/digest";
+import { outreachRouter } from "./routes/outreach";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 export function createApp() {
@@ -12,6 +14,8 @@ export function createApp() {
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
   app.use("/applications", applicationsRouter);
+  app.use("/digest", digestRouter);
+  app.use("/outreach", outreachRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -17,6 +17,7 @@ const baseFields = {
   jobUrl: z.string().trim().url().optional().or(z.literal("")).optional(),
   resumeVariant: z.string().trim().min(1).optional(),
   notes: z.string().trim().optional(),
+  analyzeEnabled: z.boolean().optional().default(false),
 };
 
 export const createApplicationSchema = z.object(baseFields);
@@ -32,6 +33,7 @@ export const updateApplicationSchema = z
     jobUrl: baseFields.jobUrl,
     resumeVariant: baseFields.resumeVariant,
     notes: baseFields.notes,
+    analyzeEnabled: z.boolean().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "At least one field must be provided",

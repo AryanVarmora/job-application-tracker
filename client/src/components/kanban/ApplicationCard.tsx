@@ -20,7 +20,7 @@ export function ApplicationCard({ application, onOpen }: Props) {
       {...listeners}
       {...attributes}
       onClick={() => onOpen(application.id)}
-      className={isDragging ? "opacity-40" : ""}
+      className={`transition-opacity duration-150 ${isDragging ? "opacity-40" : ""}`}
     >
       <ApplicationCardContent application={application} />
     </div>

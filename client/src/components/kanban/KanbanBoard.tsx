@@ -16,9 +16,10 @@ interface Props {
   applications: Application[];
   onOpen: (id: string) => void;
   onStatusChange: (id: string, status: ApplicationStatus) => void;
+  onQuickAdd: (status: ApplicationStatus) => void;
 }
 
-export function KanbanBoard({ applications, onOpen, onStatusChange }: Props) {
+export function KanbanBoard({ applications, onOpen, onStatusChange, onQuickAdd }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   // Require a few pixels of movement before a drag starts, so a plain click to open
@@ -54,12 +55,13 @@ export function KanbanBoard({ applications, onOpen, onStatusChange }: Props) {
             status={status}
             applications={applications.filter((a) => a.status === status)}
             onOpen={onOpen}
+            onQuickAdd={onQuickAdd}
           />
         ))}
       </div>
       <DragOverlay>
         {activeApplication ? (
-          <div className="w-72 rotate-2 shadow-xl">
+          <div className="w-72 rotate-2 scale-105 rounded-xl shadow-2xl shadow-violet-900/30 ring-1 ring-violet-500/25">
             <ApplicationCardContent application={activeApplication} />
           </div>
         ) : null}

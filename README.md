@@ -121,6 +121,8 @@ npm run dev                # http://localhost:5173
 | DELETE | `/applications/:id`             | Delete an application                 |
 | POST   | `/applications/:id/analyze`     | Analyze a pasted job description      |
 | GET    | `/applications/:id/resume-suggestion` | Get a resume variant suggestion |
+| POST   | `/applications/parse-email`     | Parse a pasted status-update email (rejection/interview/offer) and suggest a status update — read-only, doesn't write to the database |
+| POST   | `/applications/:id/apply-suggested-status` | Confirm and apply a status suggested by `parse-email` |
 
 `POST`/`PATCH` bodies are validated with Zod. `companyName` is required on create; the API upserts
 the related `Company` record automatically.

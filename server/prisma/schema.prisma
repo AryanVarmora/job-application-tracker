@@ -14,6 +14,12 @@ enum ApplicationStatus {
   offer
 }
 
+enum OutreachPlatform {
+  linkedin
+  email
+  other
+}
+
 model Company {
   id           String        @id @default(uuid())
   name         String        @unique
@@ -40,6 +46,14 @@ model Application {
   updatedAt     DateTime          @updatedAt
   contacts      Contact[]
 
+  // Set whenever `status` actually changes value (see PATCH /applications/:id).
+  // Powers GET /digest/today's "rejected today" count without a full history table.
+  statusChangedAt DateTime?
+
+  // Gates the "Analyze fit with AI" flow (POST /applications/:id/analyze). Defaults
+  // off so a new application never triggers AI processing unless explicitly opted in.
+  analyzeEnabled Boolean @default(false)
+
   // AI job-description analysis (populated by POST /applications/:id/analyze)
   jobDescriptionText       String?
   extractedRequiredSkills  Json?
@@ -50,7 +64,28 @@ model Application {
   matchBreakdown           Json?
   analyzedAt               DateTime?
 
+  outreachContacts OutreachContact[]
+
   @@map("applications")
+}
+
+// A logged LinkedIn DM / cold email, independent of the Application pipeline. Deleting
+// the linked Application (if any) unlinks rather than cascades, since the outreach log
+// entry is meaningful on its own. See services/outreachExpiry.ts for the 7-day cleanup.
+model OutreachContact {
+  id                  String           @id @default(uuid())
+  personName          String
+  company             String?
+  platform            OutreachPlatform
+  messagedAt          DateTime         @default(now())
+  isLead              Boolean          @default(false)
+  notes               String?
+  linkedApplication   Application?     @relation(fields: [linkedApplicationId], references: [id], onDelete: SetNull)
+  linkedApplicationId String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@map("outreach_contacts")
 }
 
 model Skill {

@@ -39,6 +39,7 @@ describe("smoke: create application -> analyze -> read back", () => {
         role: "Software Engineer",
         appliedDate: "2026-08-01",
         status: "applied",
+        analyzeEnabled: true,
       });
     expect(createRes.status).toBe(201);
     expect(createRes.body.id).toBeTruthy();

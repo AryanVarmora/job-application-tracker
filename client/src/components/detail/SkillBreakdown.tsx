@@ -1,5 +1,6 @@
 import type { MatchBreakdown } from "../../types";
 import { FitScoreBadge } from "../ui/FitScoreBadge";
+import { glassPanel, sectionEyebrow } from "../../lib/uiStyles";
 
 interface ListProps {
   title: string;
@@ -17,7 +18,7 @@ const TONE_CLASSES: Record<ListProps["tone"], string> = {
 function SkillList({ title, skills, tone }: ListProps) {
   return (
     <div>
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+      <p className={`mb-1.5 ${sectionEyebrow}`}>
         {title} ({skills.length})
       </p>
       {skills.length === 0 ? (
@@ -27,7 +28,7 @@ function SkillList({ title, skills, tone }: ListProps) {
           {skills.map((skill) => (
             <span
               key={skill}
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_CLASSES[tone]}`}
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset transition-colors duration-200 ${TONE_CLASSES[tone]}`}
             >
               {skill}
             </span>
@@ -40,9 +41,11 @@ function SkillList({ title, skills, tone }: ListProps) {
 
 export function SkillBreakdown({ breakdown }: { breakdown: MatchBreakdown }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+    <div className={`flex flex-col gap-4 ${glassPanel} p-4`}>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Skill Match</h3>
+        <h3 className="text-sm font-semibold tracking-tight text-slate-700 dark:text-slate-200">
+          Skill Match
+        </h3>
         <FitScoreBadge fitScore={breakdown.fitScore} />
       </div>
       <div className="grid grid-cols-2 gap-4">

@@ -3,8 +3,15 @@ import type { Application } from "../../types";
 import { countByStatus, type StatusCount } from "../../lib/chartData";
 import { STATUS_STYLES } from "../../lib/statusStyles";
 import { EmptyState } from "../ui/EmptyState";
+import { chartTooltipStyle } from "../../lib/chartTheme";
 
-export function StatusPieChart({ applications }: { applications: Application[] }) {
+export function StatusPieChart({
+  applications,
+  isDark,
+}: {
+  applications: Application[];
+  isDark: boolean;
+}) {
   const data = countByStatus(applications);
   if (data.length === 0) return <EmptyState />;
 
@@ -17,7 +24,10 @@ export function StatusPieChart({ applications }: { applications: Application[] }
           nameKey="status"
           innerRadius={55}
           outerRadius={85}
-          paddingAngle={3}
+          paddingAngle={4}
+          cornerRadius={6}
+          stroke={isDark ? "#020617" : "#ffffff"}
+          strokeWidth={2}
           // Recharts' default Pie entrance animation never resolves in this app (StrictMode's
           // double-render appears to desync its internal animation state), leaving the slices
           // permanently uncommitted to the DOM — confirmed by inspecting the rendered SVG, which
@@ -30,7 +40,7 @@ export function StatusPieChart({ applications }: { applications: Application[] }
           ))}
         </Pie>
         <Tooltip
-          contentStyle={{ borderRadius: 12, fontSize: 12 }}
+          contentStyle={chartTooltipStyle(isDark)}
           formatter={(value, _name, item) => [
             value,
             STATUS_STYLES[(item.payload as StatusCount).status].label,
@@ -38,7 +48,7 @@ export function StatusPieChart({ applications }: { applications: Application[] }
         />
         <Legend
           formatter={(value: string) => STATUS_STYLES[value as Application["status"]]?.label ?? value}
-          wrapperStyle={{ fontSize: 12 }}
+          wrapperStyle={{ fontSize: 12, color: isDark ? "#94a3b8" : "#64748b" }}
         />
       </PieChart>
     </ResponsiveContainer>

@@ -31,6 +31,11 @@ export function errorHandler(
     if (err.code === "P2002") {
       return res.status(409).json({ error: "Conflict", message: "Unique constraint violated" });
     }
+    if (err.code === "P2003") {
+      return res
+        .status(400)
+        .json({ error: "BadRequest", message: "Referenced record does not exist" });
+    }
   }
 
   console.error(err);
