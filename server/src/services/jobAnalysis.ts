@@ -20,6 +20,11 @@ export interface JobUrlExtraction extends JobDescriptionAnalysis {
   jobDescriptionText: string;
 }
 
+export interface RoleExtraction {
+  role: string;
+  confidence: "high" | "medium" | "low";
+}
+
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1";
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "llama3.1:8b";
 
@@ -71,6 +76,25 @@ commentary before or after it. The object must match exactly this shape:
 
 Use "unknown" for detectedStatus if the email isn't clearly about one of those four states. Use
 "low" confidence whenever the company name or status is ambiguous, inferred, or only weakly implied.`;
+
+// Used only by gmailScan.ts, only for an "application received" confirmation email whose
+// company didn't match anything already tracked - parseStatusEmail already told us the company
+// and status; this is a second, narrower extraction for the one thing it doesn't provide (the
+// role/job title), so a new Application record can be created from the email alone. Isolated
+// with its own prompt/shape rather than added to parseStatusEmail's output, so that function's
+// existing behavior (depended on by the manual paste-email import flow) is never touched.
+const ROLE_SYSTEM_PROMPT = `You extract the job title/role being applied for from a raw
+"thank you for applying" / job-application-confirmation email (subject line followed by body).
+
+Respond with ONLY a single JSON object and nothing else - no markdown code fences, no
+commentary before or after it. The object must match exactly this shape:
+
+{
+  "role": string (the job title/role applied for, as stated in the email; empty string if unclear),
+  "confidence": "high" | "medium" | "low"
+}
+
+Use "low" confidence whenever the role is ambiguous, inferred, or only weakly implied.`;
 
 // Used by parseJobPostingFromUrl (services/jobUrlImport.ts) to turn text scraped from a job
 // posting page directly into form-fillable fields plus the same analysis analyzeJobDescription
@@ -190,6 +214,10 @@ export async function analyzeJobDescription(
 
 export async function parseStatusEmail(emailText: string): Promise<EmailStatusExtraction> {
   return runJsonExtraction<EmailStatusExtraction>(EMAIL_SYSTEM_PROMPT, emailText);
+}
+
+export async function extractRoleFromApplicationEmail(emailText: string): Promise<RoleExtraction> {
+  return runJsonExtraction<RoleExtraction>(ROLE_SYSTEM_PROMPT, emailText);
 }
 
 // Isolated from analyzeJobDescription on purpose - same underlying pipeline (runJsonExtraction

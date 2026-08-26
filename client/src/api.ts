@@ -5,6 +5,9 @@ import type {
   CreateOutreachContactInput,
   DigestToday,
   EmailParseResult,
+  GmailScanSummary,
+  GmailSuggestion,
+  GoogleAuthStatus,
   JobUrlExtraction,
   OutreachContact,
   ResumeSuggestion,
@@ -111,6 +114,36 @@ export function getResumeDownloadUrl(id: string): string {
 
 export function deleteResume(id: string): Promise<void> {
   return fetch(`${API_URL}/applications/${id}/resume`, { method: "DELETE" }).then((res) =>
+    handle(res)
+  );
+}
+
+export function getGoogleAuthStatus(): Promise<GoogleAuthStatus> {
+  return fetch(`${API_URL}/auth/google/status`).then((res) => handle(res));
+}
+
+// Not fetched - a real page navigation, since Google's OAuth consent screen requires a
+// top-level browser redirect (this can't be a CORS fetch from the SPA).
+export function getGoogleConnectUrl(): string {
+  return `${API_URL}/auth/google`;
+}
+
+export function scanGmail(): Promise<GmailScanSummary> {
+  return fetch(`${API_URL}/gmail/scan`, { method: "POST" }).then((res) => handle(res));
+}
+
+export function getGmailSuggestions(): Promise<GmailSuggestion[]> {
+  return fetch(`${API_URL}/gmail/suggestions`).then((res) => handle(res));
+}
+
+export function confirmGmailSuggestion(id: string): Promise<Application> {
+  return fetch(`${API_URL}/gmail/suggestions/${id}/confirm`, { method: "POST" }).then((res) =>
+    handle(res)
+  );
+}
+
+export function rejectGmailSuggestion(id: string): Promise<void> {
+  return fetch(`${API_URL}/gmail/suggestions/${id}`, { method: "DELETE" }).then((res) =>
     handle(res)
   );
 }

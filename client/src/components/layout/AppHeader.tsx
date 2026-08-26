@@ -1,5 +1,6 @@
 import { MoonIcon, SunIcon } from "../ui/icons";
 import { gradientButton, secondaryButton } from "../../lib/uiStyles";
+import { GmailConnectButton } from "../gmail/GmailConnectButton";
 
 type View = "board" | "dashboard" | "leads";
 
@@ -11,6 +12,7 @@ interface Props {
   onCreate: () => void;
   onImportEmail: () => void;
   onLogOutreach: () => void;
+  onGmailScanned: () => void;
 }
 
 const VIEWS: { id: View; label: string }[] = [
@@ -27,6 +29,7 @@ export function AppHeader({
   onCreate,
   onImportEmail,
   onLogOutreach,
+  onGmailScanned,
 }: Props) {
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/70 backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/60">
@@ -55,6 +58,7 @@ export function AppHeader({
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <GmailConnectButton onScanned={onGmailScanned} />
           <button onClick={onImportEmail} className={secondaryButton}>
             Paste Email
           </button>

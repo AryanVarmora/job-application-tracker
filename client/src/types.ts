@@ -170,3 +170,41 @@ export interface UpdateOutreachContactInput {
   notes?: string;
   linkedApplicationId?: string | null;
 }
+
+export interface GoogleAuthStatus {
+  connected: boolean;
+}
+
+export interface GmailScanSummary {
+  scanned: number;
+  autoApplied: number;
+  pending: number;
+  skipped: number;
+  newApplicationsCreated: number;
+  newApplicationSuggestions: number;
+}
+
+export type GmailSuggestionType = "status_update" | "new_application";
+
+// A medium/low-confidence guess from a scanned Gmail message, awaiting confirm/reject (see
+// GmailSuggestionsPanel). High-confidence matches are applied/created directly by the scan
+// and never show up here. Two shapes share this type, discriminated by `type`:
+// - status_update: applicationId/application/suggestedStatus are set; company/role/appliedDate
+//   are null - it's a status change proposed for an EXISTING tracked application.
+// - new_application: company/role/appliedDate are set; applicationId/application/
+//   suggestedStatus are null - no existing application matched, so confirming this creates one.
+export interface GmailSuggestion {
+  id: string;
+  gmailMessageId: string;
+  type: GmailSuggestionType;
+  confidence: EmailConfidence;
+  createdAt: string;
+
+  applicationId: string | null;
+  application: Application | null;
+  suggestedStatus: ApplicationStatus | null;
+
+  companyName: string | null;
+  role: string | null;
+  appliedDate: string | null;
+}

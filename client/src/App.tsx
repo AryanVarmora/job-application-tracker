@@ -7,6 +7,7 @@ import { ApplicationModal } from "./components/detail/ApplicationModal";
 import { EmailImportModal } from "./components/email/EmailImportModal";
 import { LogOutreachModal } from "./components/outreach/LogOutreachModal";
 import { LeadsView } from "./components/outreach/LeadsView";
+import { GmailSuggestionsPanel } from "./components/gmail/GmailSuggestionsPanel";
 import { useApplications } from "./hooks/useApplications";
 import { useDarkMode } from "./hooks/useDarkMode";
 import { updateApplication } from "./api";
@@ -29,6 +30,8 @@ function App() {
   // Bumped whenever a new outreach contact is logged as a lead, so a mounted LeadsView
   // (via its key) refetches instead of showing stale data.
   const [leadsRefreshToken, setLeadsRefreshToken] = useState(0);
+  // Same remount-to-refetch pattern, bumped after a Gmail scan completes.
+  const [gmailRefreshToken, setGmailRefreshToken] = useState(0);
 
   function openApplication(id: string) {
     const application = applications.find((a) => a.id === id);
@@ -61,6 +64,13 @@ function App() {
         onCreate={() => setModalState({ mode: "create" })}
         onImportEmail={() => setEmailModalOpen(true)}
         onLogOutreach={() => setOutreachModalOpen(true)}
+        onGmailScanned={() => {
+          // A scan can auto-apply status changes or auto-create applications directly
+          // (bypassing the suggestions list, which only shows medium/low-confidence
+          // guesses) - reload so those show up on the board without a manual refresh.
+          setGmailRefreshToken((t) => t + 1);
+          reload();
+        }}
       />
 
       <main className="mx-auto max-w-7xl px-6 py-6">
@@ -71,6 +81,7 @@ function App() {
         )}
 
         <DigestPanel />
+        <GmailSuggestionsPanel key={gmailRefreshToken} onApplied={upsert} />
 
         {loading ? (
           <p className="text-sm text-slate-400 dark:text-slate-500">Loading...</p>

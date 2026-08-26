@@ -20,6 +20,17 @@ enum OutreachPlatform {
   other
 }
 
+enum EmailConfidence {
+  high
+  medium
+  low
+}
+
+enum GmailSuggestionType {
+  status_update
+  new_application
+}
+
 model Company {
   id           String        @id @default(uuid())
   name         String        @unique
@@ -73,6 +84,7 @@ model Application {
   analyzedAt               DateTime?
 
   outreachContacts OutreachContact[]
+  gmailSuggestions GmailSuggestion[]
 
   @@map("applications")
 }
@@ -115,6 +127,70 @@ model UserSkill {
   createdAt       DateTime @default(now())
 
   @@map("user_skills")
+}
+
+// Stores the single-user Gmail OAuth refresh token (see services/googleAuth.ts). One row
+// is expected; access tokens are never persisted since google-auth-library derives a fresh
+// one from the refresh token on demand.
+model GoogleAuthToken {
+  id           String   @id @default(uuid())
+  refreshToken String
+  createdAt    DateTime @default(now())
+
+  @@map("google_auth_tokens")
+}
+
+// Singleton row tracking Gmail scan progress (see services/gmailScan.ts), so POST /gmail/scan
+// only asks Gmail for messages since the last successful scan (bounded to the last 7 days)
+// instead of re-fetching the same window on every call.
+model GmailScanState {
+  id            String    @id @default(uuid())
+  lastScannedAt DateTime?
+
+  @@map("gmail_scan_state")
+}
+
+// Records that a Gmail message has already been considered by a scan, regardless of outcome
+// (auto-applied, turned into a GmailSuggestion, or ignored as not job-related) - the single
+// source of truth for "don't reprocess this", independent of whether a GmailSuggestion row
+// for it still exists (it's deleted on confirm/reject, this row is not).
+model GmailProcessedMessage {
+  id             String   @id @default(uuid())
+  gmailMessageId String   @unique
+  processedAt    DateTime @default(now())
+
+  @@map("gmail_processed_messages")
+}
+
+// A medium/low-confidence guess extracted from a scanned email, awaiting the user's
+// confirm/reject via POST/DELETE /gmail/suggestions/:id (same confirm-before-anything-changes
+// contract as the manual paste-email flow). High-confidence matches are applied/created
+// directly by the scan and never create a row here.
+//
+// Two shapes share this table, discriminated by `type`:
+// - status_update: a status change for an EXISTING tracked application (applicationId +
+//   suggestedStatus are set; companyName/role/appliedDate are null).
+// - new_application: no existing tracked application matched, but the email reads like a
+//   genuine "you just applied" confirmation (companyName/role/appliedDate are set;
+//   applicationId/suggestedStatus are null - there's nothing existing to reference yet).
+model GmailSuggestion {
+  id              String              @id @default(uuid())
+  gmailMessageId  String              @unique
+  type            GmailSuggestionType @default(status_update)
+  confidence      EmailConfidence
+  createdAt       DateTime            @default(now())
+
+  // status_update fields
+  application     Application?        @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationId   String?
+  suggestedStatus ApplicationStatus?
+
+  // new_application fields
+  companyName String?
+  role        String?
+  appliedDate DateTime?
+
+  @@map("gmail_suggestions")
 }
 
 model Contact {

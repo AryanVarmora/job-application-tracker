@@ -26,6 +26,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^176.0.0",
     "jsdom": "^29.1.1",
     "multer": "^2.2.0",
     "openai": "^4.63.0",

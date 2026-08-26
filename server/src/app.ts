@@ -3,6 +3,8 @@ import cors from "cors";
 import { applicationsRouter } from "./routes/applications";
 import { digestRouter } from "./routes/digest";
 import { outreachRouter } from "./routes/outreach";
+import { authRouter } from "./routes/auth";
+import { gmailRouter } from "./routes/gmail";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler";
 
 export function createApp() {
@@ -16,6 +18,8 @@ export function createApp() {
   app.use("/applications", applicationsRouter);
   app.use("/digest", digestRouter);
   app.use("/outreach", outreachRouter);
+  app.use("/auth", authRouter);
+  app.use("/gmail", gmailRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
