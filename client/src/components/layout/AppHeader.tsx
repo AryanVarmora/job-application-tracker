@@ -2,7 +2,7 @@ import { MoonIcon, SunIcon } from "../ui/icons";
 import { gradientButton, secondaryButton } from "../../lib/uiStyles";
 import { GmailConnectButton } from "../gmail/GmailConnectButton";
 
-type View = "board" | "dashboard" | "leads";
+type View = "board" | "dashboard" | "outreach";
 
 interface Props {
   view: View;
@@ -18,7 +18,7 @@ interface Props {
 const VIEWS: { id: View; label: string }[] = [
   { id: "board", label: "Board" },
   { id: "dashboard", label: "Dashboard" },
-  { id: "leads", label: "Leads" },
+  { id: "outreach", label: "Outreach" },
 ];
 
 export function AppHeader({

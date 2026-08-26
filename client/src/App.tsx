@@ -6,14 +6,14 @@ import { DigestPanel } from "./components/dashboard/DigestPanel";
 import { ApplicationModal } from "./components/detail/ApplicationModal";
 import { EmailImportModal } from "./components/email/EmailImportModal";
 import { LogOutreachModal } from "./components/outreach/LogOutreachModal";
-import { LeadsView } from "./components/outreach/LeadsView";
+import { OutreachView } from "./components/outreach/OutreachView";
 import { GmailSuggestionsPanel } from "./components/gmail/GmailSuggestionsPanel";
 import { useApplications } from "./hooks/useApplications";
 import { useDarkMode } from "./hooks/useDarkMode";
 import { updateApplication } from "./api";
 import type { Application, ApplicationStatus } from "./types";
 
-type View = "board" | "dashboard" | "leads";
+type View = "board" | "dashboard" | "outreach";
 
 type ModalState =
   | { mode: "create"; prefillCompanyName?: string; prefillStatus?: ApplicationStatus }
@@ -27,9 +27,9 @@ function App() {
   const [modalState, setModalState] = useState<ModalState>(null);
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [outreachModalOpen, setOutreachModalOpen] = useState(false);
-  // Bumped whenever a new outreach contact is logged as a lead, so a mounted LeadsView
-  // (via its key) refetches instead of showing stale data.
-  const [leadsRefreshToken, setLeadsRefreshToken] = useState(0);
+  // Bumped whenever a new outreach contact is logged, so a mounted OutreachView (via its
+  // key) refetches instead of showing stale data.
+  const [outreachRefreshToken, setOutreachRefreshToken] = useState(0);
   // Same remount-to-refetch pattern, bumped after a Gmail scan completes.
   const [gmailRefreshToken, setGmailRefreshToken] = useState(0);
 
@@ -96,7 +96,7 @@ function App() {
               />
             )}
             {view === "dashboard" && <Dashboard applications={applications} isDark={isDark} />}
-            {view === "leads" && <LeadsView key={leadsRefreshToken} />}
+            {view === "outreach" && <OutreachView key={outreachRefreshToken} />}
           </div>
         )}
       </main>
@@ -131,9 +131,7 @@ function App() {
       {outreachModalOpen && (
         <LogOutreachModal
           onClose={() => setOutreachModalOpen(false)}
-          onLogged={(contact) => {
-            if (contact.isLead) setLeadsRefreshToken((t) => t + 1);
-          }}
+          onLogged={() => setOutreachRefreshToken((t) => t + 1)}
         />
       )}
     </div>
