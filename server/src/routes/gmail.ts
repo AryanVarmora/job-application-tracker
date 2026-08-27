@@ -18,7 +18,8 @@ gmailRouter.post("/scan", async (_req, res, next) => {
     const summary = await scanGmailForStatusUpdates();
     console.log(
       `Gmail scan: scanned=${summary.scanned} autoApplied=${summary.autoApplied} ` +
-        `pending=${summary.pending} skipped=${summary.skipped}`
+        `pending=${summary.pending} skipped=${summary.skipped} ` +
+        `skippedDueToError=${summary.skippedDueToError}`
     );
     res.json(summary);
   } catch (err) {

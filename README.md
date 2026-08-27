@@ -1,4 +1,4 @@
-# Job Application Tracker
+# Sentinel
 
 A full-stack job application tracker with AI-powered job description analysis and skill-match
 scoring. A kanban board to track applications through the pipeline, plus a dashboard for

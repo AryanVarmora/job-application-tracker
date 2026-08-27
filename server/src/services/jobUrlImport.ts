@@ -15,7 +15,7 @@ const MAX_HTML_BYTES = 2 * 1024 * 1024; // 2MB
 const MIN_EXTRACTED_TEXT_LENGTH = 500;
 
 const USER_AGENT =
-  "job-application-tracker/1.0 (+personal job-search tool; fetches a URL you paste in to prefill a form)";
+  "sentinel/1.0 (+personal job-search tool; fetches a URL you paste in to prefill a form)";
 
 // Blocks the obvious loopback/private/link-local hosts a pasted URL could point at, so this
 // endpoint can't be turned into a way to make the server fetch its own internal network. This

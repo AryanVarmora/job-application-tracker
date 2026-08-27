@@ -255,6 +255,69 @@ describe("scanGmailForStatusUpdates > confidence threshold", () => {
   });
 });
 
+describe("scanGmailForStatusUpdates > per-message error resilience", () => {
+  it("skips a message that keeps failing (e.g. a rate limit) without losing the rest of the batch", async () => {
+    const { company: companyA, application: applicationA } = await seedApplication("error-resilience-a");
+    const { company: companyB, application: applicationB } = await seedApplication("error-resilience-b");
+    const { company: companyC, application: applicationC } = await seedApplication("error-resilience-c");
+
+    const messageIdA = `msg-err-a-${Date.now()}-${Math.random()}`;
+    const messageIdB = `msg-err-b-${Date.now()}-${Math.random()}`;
+    const messageIdC = `msg-err-c-${Date.now()}-${Math.random()}`;
+    createdMessageIds.push(messageIdA, messageIdB, messageIdC);
+
+    mockGmailInbox([
+      gmailMessage(messageIdA, `Interview update from ${companyA.name}`, "hr@example.com", "..."),
+      gmailMessage(messageIdB, `Interview update from ${companyB.name}`, "hr@example.com", "..."),
+      gmailMessage(messageIdC, `Interview update from ${companyC.name}`, "hr@example.com", "..."),
+    ]);
+
+    // B simulates a message that still fails after jobAnalysis.ts's own 429 retries are
+    // exhausted (that retry/backoff is exercised separately in jobAnalysis.test.ts) - this
+    // level only needs to prove the scan doesn't crash and keeps processing A and C.
+    parseStatusEmailMock.mockImplementation(async (emailText: string) => {
+      if (emailText.includes(companyB.name)) {
+        throw new Error("429 Rate limit exceeded - retries exhausted");
+      }
+      const company = [companyA, companyC].find((c) => emailText.includes(c.name))!;
+      return { companyName: company.name, detectedStatus: "interviewing", confidence: "high" };
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const summary = await scanGmailForStatusUpdates();
+
+    expect(summary.scanned).toBe(3);
+    expect(summary.autoApplied).toBe(2);
+    expect(summary.skipped).toBe(0);
+    expect(summary.skippedDueToError).toBe(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(messageIdB),
+      expect.any(Error)
+    );
+    consoleErrorSpy.mockRestore();
+
+    const [updatedA, updatedB, updatedC] = await Promise.all([
+      prisma.application.findUniqueOrThrow({ where: { id: applicationA.id } }),
+      prisma.application.findUniqueOrThrow({ where: { id: applicationB.id } }),
+      prisma.application.findUniqueOrThrow({ where: { id: applicationC.id } }),
+    ]);
+    expect(updatedA.status).toBe("interviewing");
+    expect(updatedB.status).toBe("applied");
+    expect(updatedC.status).toBe("interviewing");
+
+    // The failed message is still marked processed - consistent with every other skip path -
+    // so a re-scan of the same window doesn't retry it forever.
+    const processedCount = await prisma.gmailProcessedMessage.count({
+      where: { gmailMessageId: { in: [messageIdA, messageIdB, messageIdC] } },
+    });
+    expect(processedCount).toBe(3);
+
+    const rescan = await scanGmailForStatusUpdates();
+    expect(rescan.scanned).toBe(0);
+  });
+});
+
 describe("scanGmailForStatusUpdates > duplicate-processing prevention", () => {
   it("never reprocesses a message already recorded as processed, across separate scan calls", async () => {
     const { company } = await seedApplication("duplicate-prevention");

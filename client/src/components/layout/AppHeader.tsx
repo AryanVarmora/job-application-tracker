@@ -37,7 +37,7 @@ export function AppHeader({
         <div className="flex items-center gap-2.5">
           <span className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-blue-500 shadow-[0_0_16px_-2px_rgba(124,58,237,0.6)]" />
           <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-base font-bold tracking-tight text-transparent dark:from-white dark:to-slate-300">
-            Job Tracker
+            Sentinel
           </h1>
         </div>
 

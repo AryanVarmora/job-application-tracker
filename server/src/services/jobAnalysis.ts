@@ -156,22 +156,42 @@ function stripCodeFence(raw: string): string {
   return (fenced ? fenced[1] : raw).trim();
 }
 
+// A couple of retries is plenty for a personal-scale tool to ride out a brief per-minute
+// quota bump (especially Gemini's free tier) without failing the whole extraction.
+const RATE_LIMIT_MAX_RETRIES = 2;
+const RATE_LIMIT_BASE_DELAY_MS = 1000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function requestCompletion(
   openai: OpenAI,
   model: string,
   messages: ChatCompletionMessageParam[]
 ): Promise<string> {
-  const completion = await openai.chat.completions.create({
-    model,
-    messages,
-    temperature: 0,
-  });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages,
+        temperature: 0,
+      });
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) {
-    throw new Error(`${model} returned no content for job description analysis`);
+      const raw = completion.choices[0]?.message?.content;
+      if (!raw) {
+        throw new Error(`${model} returned no content for job description analysis`);
+      }
+      return raw;
+    } catch (err) {
+      // Only 429s are worth retrying here - anything else (bad request, auth, malformed
+      // response) will just fail the same way again.
+      if (!(err instanceof OpenAI.RateLimitError) || attempt >= RATE_LIMIT_MAX_RETRIES) {
+        throw err;
+      }
+      await sleep(RATE_LIMIT_BASE_DELAY_MS * 2 ** attempt);
+    }
   }
-  return raw;
 }
 
 // Shared by every AI extraction task in this module: send the system prompt + input,

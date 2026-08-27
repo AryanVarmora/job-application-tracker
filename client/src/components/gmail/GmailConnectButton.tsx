@@ -31,6 +31,9 @@ function formatScanSummary(summary: GmailScanSummary): string {
     );
   }
   if (summary.skipped > 0) outcomes.push(`${summary.skipped} not job-related`);
+  if (summary.skippedDueToError > 0) {
+    outcomes.push(`${summary.skippedDueToError} skipped due to an error`);
+  }
 
   return `Scanned ${summary.scanned} new email${plural} — ${outcomes.join(", ")}.`;
 }

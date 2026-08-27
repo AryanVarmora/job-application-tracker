@@ -14,6 +14,16 @@ const SCAN_WINDOW_MS = 7 * DAY_MS;
 // naturally bounded by how much mail actually arrives in a week, not by this constant.
 const LIST_PAGE_SIZE = 100;
 
+// A first-time scan can queue up dozens of sequential AI calls (a full 7-day window), which
+// is enough to trip a personal-tier per-minute quota (Gemini's free tier especially) even
+// before any single call gets a 429. This is just a throttle to reduce how often that
+// happens - actual 429s are still handled via the retry/backoff in jobAnalysis.ts.
+const AI_CALL_DELAY_MS = 500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Deliberately blunt per spec ("keep this simple, false negatives are fine, this is a
 // convenience feature not a critical system") - a subject keyword or a sender domain that
 // resembles a company already on the board is enough to warrant the (more expensive) AI
@@ -59,6 +69,7 @@ export interface GmailScanSummary {
   autoApplied: number;
   pending: number;
   skipped: number;
+  skippedDueToError: number;
   newApplicationsCreated: number;
   newApplicationSuggestions: number;
 }
@@ -211,6 +222,7 @@ export async function scanGmailForStatusUpdates(now: Date = new Date()): Promise
     autoApplied: 0,
     pending: 0,
     skipped: 0,
+    skippedDueToError: 0,
     newApplicationsCreated: 0,
     newApplicationSuggestions: 0,
   };
@@ -235,112 +247,124 @@ export async function scanGmailForStatusUpdates(now: Date = new Date()): Promise
       continue;
     }
 
-    const emailText = subject ? `Subject: ${subject}\n\n${bodyText}` : bodyText;
-    const extraction = await parseStatusEmail(emailText);
+    // Everything from here on makes AI calls (which can still fail even after the
+    // retry/backoff in jobAnalysis.ts exhausts itself, e.g. a sustained rate limit or an
+    // outright provider outage). One bad email shouldn't sink the whole scan - catch per
+    // message, mark it processed so it isn't retried forever, and move on.
+    try {
+      const emailText = subject ? `Subject: ${subject}\n\n${bodyText}` : bodyText;
+      await sleep(AI_CALL_DELAY_MS);
+      const extraction = await parseStatusEmail(emailText);
 
-    const match = extraction.companyName
-      ? findBestCompanyMatch(
-          extraction.companyName,
-          applications.map((a) => ({ applicationId: a.id, companyName: a.company.name }))
-        )
-      : null;
+      const match = extraction.companyName
+        ? findBestCompanyMatch(
+            extraction.companyName,
+            applications.map((a) => ({ applicationId: a.id, companyName: a.company.name }))
+          )
+        : null;
 
-    // No confidently-matched existing application - candidate for a brand new one, but only
-    // when this reads like a genuine "you just applied" confirmation. A rejection/interview/
-    // offer about a company we don't track isn't something we can act on (there's nothing to
-    // attribute the status to), so it's skipped exactly as before.
-    if (!match) {
-      if (!extraction.companyName || extraction.detectedStatus !== "applied") {
+      // No confidently-matched existing application - candidate for a brand new one, but only
+      // when this reads like a genuine "you just applied" confirmation. A rejection/interview/
+      // offer about a company we don't track isn't something we can act on (there's nothing to
+      // attribute the status to), so it's skipped exactly as before.
+      if (!match) {
+        if (!extraction.companyName || extraction.detectedStatus !== "applied") {
+          await markProcessed(messageId);
+          summary.skipped++;
+          continue;
+        }
+
+        if (findWeakCompanyMatch(extraction.companyName, knownCompanyNames)) {
+          // Close enough to something already tracked that a new row would likely be a
+          // duplicate - leave it alone rather than guess; the existing (stricter-threshold)
+          // status-update match may catch it on a future scan once names line up better.
+          await markProcessed(messageId);
+          summary.skipped++;
+          continue;
+        }
+
+        await sleep(AI_CALL_DELAY_MS);
+        const roleExtraction = await extractRoleFromApplicationEmail(emailText);
+        if (!roleExtraction.role) {
+          // Can't create or usefully suggest an application without a role.
+          await markProcessed(messageId);
+          summary.skipped++;
+          continue;
+        }
+
+        const combinedConfidence = weakerConfidence(extraction.confidence, roleExtraction.confidence);
+        const appliedDate = full.data.internalDate ? new Date(Number(full.data.internalDate)) : now;
+
+        if (combinedConfidence === "high") {
+          const company = await prisma.company.upsert({
+            where: { name: extraction.companyName },
+            update: {},
+            create: { name: extraction.companyName },
+          });
+          await prisma.application.create({
+            data: {
+              companyId: company.id,
+              role: roleExtraction.role,
+              status: "applied",
+              appliedDate,
+              notes: "Auto-imported from Gmail scan",
+            },
+          });
+          // Seen within this same scan run, so a second confirmation email for the same new
+          // company later in this batch is caught by the weak-match check above too.
+          knownCompanyNames.push(extraction.companyName);
+          await markProcessed(messageId);
+          summary.newApplicationsCreated++;
+        } else {
+          await prisma.gmailSuggestion.create({
+            data: {
+              gmailMessageId: messageId,
+              type: "new_application",
+              companyName: extraction.companyName,
+              role: roleExtraction.role,
+              appliedDate,
+              confidence: combinedConfidence,
+            },
+          });
+          await markProcessed(messageId);
+          summary.newApplicationSuggestions++;
+        }
+        continue;
+      }
+
+      if (extraction.detectedStatus === "unknown") {
         await markProcessed(messageId);
         summary.skipped++;
         continue;
       }
 
-      if (findWeakCompanyMatch(extraction.companyName, knownCompanyNames)) {
-        // Close enough to something already tracked that a new row would likely be a
-        // duplicate - leave it alone rather than guess; the existing (stricter-threshold)
-        // status-update match may catch it on a future scan once names line up better.
+      if (extraction.confidence === "high") {
+        const current = await prisma.application.findUnique({ where: { id: match.applicationId } });
+        if (current && current.status !== extraction.detectedStatus) {
+          await prisma.application.update({
+            where: { id: match.applicationId },
+            data: { status: extraction.detectedStatus, statusChangedAt: now },
+          });
+        }
         await markProcessed(messageId);
-        summary.skipped++;
-        continue;
-      }
-
-      const roleExtraction = await extractRoleFromApplicationEmail(emailText);
-      if (!roleExtraction.role) {
-        // Can't create or usefully suggest an application without a role.
-        await markProcessed(messageId);
-        summary.skipped++;
-        continue;
-      }
-
-      const combinedConfidence = weakerConfidence(extraction.confidence, roleExtraction.confidence);
-      const appliedDate = full.data.internalDate ? new Date(Number(full.data.internalDate)) : now;
-
-      if (combinedConfidence === "high") {
-        const company = await prisma.company.upsert({
-          where: { name: extraction.companyName },
-          update: {},
-          create: { name: extraction.companyName },
-        });
-        await prisma.application.create({
-          data: {
-            companyId: company.id,
-            role: roleExtraction.role,
-            status: "applied",
-            appliedDate,
-            notes: "Auto-imported from Gmail scan",
-          },
-        });
-        // Seen within this same scan run, so a second confirmation email for the same new
-        // company later in this batch is caught by the weak-match check above too.
-        knownCompanyNames.push(extraction.companyName);
-        await markProcessed(messageId);
-        summary.newApplicationsCreated++;
+        summary.autoApplied++;
       } else {
         await prisma.gmailSuggestion.create({
           data: {
             gmailMessageId: messageId,
-            type: "new_application",
-            companyName: extraction.companyName,
-            role: roleExtraction.role,
-            appliedDate,
-            confidence: combinedConfidence,
+            type: "status_update",
+            applicationId: match.applicationId,
+            suggestedStatus: extraction.detectedStatus,
+            confidence: extraction.confidence,
           },
         });
         await markProcessed(messageId);
-        summary.newApplicationSuggestions++;
+        summary.pending++;
       }
-      continue;
-    }
-
-    if (extraction.detectedStatus === "unknown") {
+    } catch (err) {
+      console.error(`Gmail scan: skipping message ${messageId} after a processing error:`, err);
       await markProcessed(messageId);
-      summary.skipped++;
-      continue;
-    }
-
-    if (extraction.confidence === "high") {
-      const current = await prisma.application.findUnique({ where: { id: match.applicationId } });
-      if (current && current.status !== extraction.detectedStatus) {
-        await prisma.application.update({
-          where: { id: match.applicationId },
-          data: { status: extraction.detectedStatus, statusChangedAt: now },
-        });
-      }
-      await markProcessed(messageId);
-      summary.autoApplied++;
-    } else {
-      await prisma.gmailSuggestion.create({
-        data: {
-          gmailMessageId: messageId,
-          type: "status_update",
-          applicationId: match.applicationId,
-          suggestedStatus: extraction.detectedStatus,
-          confidence: extraction.confidence,
-        },
-      });
-      await markProcessed(messageId);
-      summary.pending++;
+      summary.skippedDueToError++;
     }
   }
 

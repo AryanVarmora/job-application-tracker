@@ -180,6 +180,7 @@ export interface GmailScanSummary {
   autoApplied: number;
   pending: number;
   skipped: number;
+  skippedDueToError: number;
   newApplicationsCreated: number;
   newApplicationSuggestions: number;
 }
