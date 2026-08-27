@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import request from "supertest";
 
 // Exercises the real Postgres stack (applications, suggestions, processed-message tracking)
 // but stubs the two external boundaries: the Gmail API client and the AI email-parsing call
@@ -28,6 +29,9 @@ vi.mock("../services/jobAnalysis", () => ({
 
 import { prisma } from "../lib/prisma";
 import { scanGmailForStatusUpdates } from "../services/gmailScan";
+import { createApp } from "../app";
+
+const app = createApp();
 
 const createdCompanyNames: string[] = [];
 const createdMessageIds: string[] = [];
@@ -473,6 +477,52 @@ describe("scanGmailForStatusUpdates > new-application detection", () => {
       where: { gmailMessageId: messageId },
     });
     expect(suggestion).toBeNull();
+  });
+
+  it("counts toward today's digest even though the email (and appliedDate) is from days ago", async () => {
+    const companyName = newApplicationCandidateName("Digest New Co");
+    createdCompanyNames.push(companyName);
+    const messageId = `msg-newapp-digest-${Date.now()}-${Math.random()}`;
+    createdMessageIds.push(messageId);
+    // The email itself is days old - only createdAt (when this scan actually ran) should
+    // matter for the digest, not appliedDate (when the application was actually submitted).
+    const sentAt = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+
+    mockGmailInbox([
+      gmailMessage(
+        messageId,
+        `Thank you for applying to ${companyName}`,
+        "no-reply@example.com",
+        "...",
+        sentAt
+      ),
+    ]);
+    parseStatusEmailMock.mockResolvedValueOnce({
+      companyName,
+      detectedStatus: "applied",
+      confidence: "high",
+    });
+    extractRoleFromApplicationEmailMock.mockResolvedValueOnce({
+      role: "Software Engineer",
+      confidence: "high",
+    });
+
+    // >= rather than === : other e2e test files run concurrently against the same
+    // database and may log their own "today" applications in between these calls.
+    const before = await request(app).get("/digest/today");
+    const baseline = before.body.applicationsCreated as number;
+
+    const summary = await scanGmailForStatusUpdates();
+    expect(summary.newApplicationsCreated).toBe(1);
+
+    const created = await prisma.application.findFirstOrThrow({
+      where: { company: { name: companyName } },
+    });
+    expect(created.appliedDate.toISOString()).toBe(sentAt.toISOString());
+    expect(created.createdAt.getTime()).toBeGreaterThan(sentAt.getTime());
+
+    const after = await request(app).get("/digest/today");
+    expect(after.body.applicationsCreated).toBeGreaterThanOrEqual(baseline + 1);
   });
 
   it("creates a new_application suggestion when confidence is medium or low, without creating an Application", async () => {

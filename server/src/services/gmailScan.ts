@@ -307,6 +307,11 @@ export async function scanGmailForStatusUpdates(now: Date = new Date()): Promise
               role: roleExtraction.role,
               status: "applied",
               appliedDate,
+              // Explicitly "now" (the scan's reference time) rather than the DB insert
+              // default: appliedDate reflects the email's date and can be days in the
+              // past, but createdAt must reflect when this Application row itself was
+              // created so it counts toward the digest for the day the scan actually ran.
+              createdAt: now,
               notes: "Auto-imported from Gmail scan",
             },
           });
