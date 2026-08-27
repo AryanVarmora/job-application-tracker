@@ -2,18 +2,15 @@ import { OAuth2Client } from "google-auth-library";
 import { google, type gmail_v1 } from "googleapis";
 import { HttpError } from "../middleware/errorHandler";
 import { prisma } from "../lib/prisma";
+import { requiredEnv } from "../lib/env";
 
 // Isolated from gmailScan.ts on purpose: this file only ever deals with acquiring and
 // storing Google credentials, never with what we do with them once we have a client.
 const GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new HttpError(500, `${name} is not configured on the server`);
-  }
-  return value;
-}
+// Needed to send the daily digest email (see services/dailyDigestEmail.ts). Anyone who
+// authorized before this scope was added needs to reconnect - Google doesn't grant a new
+// scope onto an already-issued refresh token, even with prompt=consent on the next run.
+const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
 
 export function createOAuth2Client(): OAuth2Client {
   return new OAuth2Client(
@@ -31,7 +28,7 @@ export function getGoogleAuthUrl(): string {
   return client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: [GMAIL_READONLY_SCOPE],
+    scope: [GMAIL_READONLY_SCOPE, GMAIL_SEND_SCOPE],
   });
 }
 

@@ -160,6 +160,32 @@ environment.
 2. Set `VITE_API_URL` to the deployed backend URL.
 3. Deploy.
 
+## Daily digest email
+
+`GET /digest/send-daily-email` sends an email version of the on-page "Today's Digest" (applications,
+rejections, messages sent, plus any pending Gmail suggestions awaiting confirmation) to
+`DIGEST_EMAIL_TO`, using the same Gmail account connected for scanning.
+
+This is deliberately **not** an in-process cron job. Render's free tier spins the service down
+after ~15 minutes idle and only wakes it on an inbound request, so a job scheduled to fire at a
+specific time in-process would silently never run if the dyno happened to be asleep at that
+moment. Instead, the endpoint is meant to be triggered by a free external scheduler whose ping
+itself wakes the dyno:
+
+1. Set `DIGEST_CRON_SECRET` (any long random string, e.g. `openssl rand -base64 24`) and
+   `DIGEST_EMAIL_TO` on the Render service.
+2. Create a free account at [cron-job.org](https://cron-job.org) (or any similar pinger) and add a
+   job that does a `GET` to `https://<your-render-url>/digest/send-daily-email?secret=<the same
+   DIGEST_CRON_SECRET>`, scheduled for Mon–Fri at your preferred local time and timezone — the
+   scheduler handles the weekday/timezone logic, not the app.
+3. The route itself also re-checks that it's a weekday before sending, as a second line of
+   defense if the external schedule is ever misconfigured, and skips (200, not an error) if
+   `DIGEST_EMAIL_ENABLED=false` — the way to turn this off without touching code or the cron job.
+
+Requires the `gmail.send` OAuth scope in addition to `gmail.readonly` (see below) — reconnect
+Gmail (`GET /auth/google`) after deploying if it was connected before this scope was added, since
+Google doesn't retroactively grant a new scope onto an already-issued refresh token.
+
 ## Security
 
 No API keys or secrets are committed anywhere in this repo — `.env` files are gitignored at every

@@ -27,6 +27,12 @@ services:
         sync: false
       - key: GOOGLE_REDIRECT_URI
         sync: false
+      - key: DIGEST_CRON_SECRET
+        sync: false
+      - key: DIGEST_EMAIL_TO
+        sync: false
+      - key: DIGEST_EMAIL_ENABLED
+        sync: false
 
 databases:
   - name: job-tracker-db
